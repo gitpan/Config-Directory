@@ -1,0 +1,50 @@
+Config/Directory - version 0.01
+===============================
+
+INTRO
+
+Config::Directory provides an object-oriented interface to configuration 
+data stored as multiple small files in one or more config directories
+(something like /proc on Linux and Solaris, or 'env' directories with
+qmail/daemontools). This kind of layout is very nice for some kinds of
+scriptability (e.g. 'echo 10 > conf/MAXCONNECTIONS').
+
+Basic usage:
+
+  $c = Config::Directory->new('/usr/local/myapp/conf');
+
+or:
+
+  $c = Config::Directory->new([ '/usr/local/myapp/conf', "$HOME/.myapp" ]);
+
+Each file becomes an entry in the blessed hashref $c, with the filename as
+the key and the file contents as the value.
+
+There are various optional arguments to modify the default behaviour - see
+the perldoc for the details.
+
+Currently only readonly access is available.
+
+
+INSTALLATION
+
+The standard:
+
+   perl Makefile.PL
+   make
+   make test
+   make install
+
+
+DEPENDENCIES
+
+File::Basename, File::Spec.
+
+
+COPYRIGHT AND LICENCE
+
+Copyright (C) 2003 Gavin Carr and Open Fusion Pty. Ltd.
+
+This library is free software; you can redistribute it and/or modify
+it under the same terms as Perl itself. 
+
