@@ -1,7 +1,7 @@
 #########################
 
 use Test;
-BEGIN { plan tests => 10 };
+BEGIN { plan tests => 16 };
 use Config::Directory;
 
 #########################
@@ -20,3 +20,12 @@ ok($c->{PLUM});
 ok(! exists $c->{APPLE});
 ok(! exists $c->{BANANA});
 ok(! exists $c->{ORANGE});
+
+$c = Config::Directory->new([ "t/t8", ], { glob => [ 'A*', 'BANANA', 'PI*' ] });
+ok(keys %$c == 3);
+ok(exists $c->{PINEAPPLE});
+ok(! exists $c->{PLUM});
+ok(exists $c->{APPLE});
+ok(exists $c->{BANANA});
+ok(! exists $c->{ORANGE});
+

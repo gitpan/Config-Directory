@@ -1,3 +1,5 @@
+# tag: Config::Directory
+
 package Config::Directory;
 
 use 5.000;
@@ -7,7 +9,7 @@ use strict;
 
 use vars qw($VERSION);
 
-$VERSION = '0.03';
+$VERSION = '0.04';
 
 my $DIRLIST;
 my $ARG;
@@ -49,8 +51,8 @@ sub init
     my $maxsize = $arg->{maxsize} || 102_400;
     my $ignore = $arg->{ignore};
 
-    # Iterate over directories
-    for my $d (@$dir) {
+    # Iterate over directories in reverse order
+    for my $d (reverse @$dir) {
         if (! -d $d) {
             warn "invalid directory '$d'"; 
             next;
@@ -59,7 +61,14 @@ sub init
         # Read file list
         my @files = ();
         if ($arg->{glob}) {
-            @files = glob File::Spec->catfile($d, $arg->{glob});
+            if (ref $arg->{glob} eq 'ARRAY') {
+                for my $g (@{$arg->{glob}}) {
+                    push @files, glob File::Spec->catfile($d, $g);
+                }
+            }
+            else {
+                @files = glob File::Spec->catfile($d, $arg->{glob});
+            }
         }
         else {
             opendir DIR, $d or die "can't open directory '$d': $!";
@@ -70,8 +79,6 @@ sub init
         for my $f (@files) {
             my $df = $arg->{glob} ? $f : File::Spec->catfile($d, $f);
             $f = basename($f) if $arg->{glob};
-            my $pf = defined $arg->{prefix} ? $arg->{prefix} . "$f" : $f;
-            my $ef = $env eq '1' ? $pf : "${env}$f" if $env;
 
             # Ignore directories
             next if -d $df;
@@ -82,16 +89,23 @@ sub init
             # Ignore if size > $maxsize
             next if -s $df > $maxsize;
 
-            # Zero-sized files clear any existing entry
-            if (-z $df) {
-                delete $self->{$pf};
-                delete $ENV{$ef} if $env;
-                next;
-            }
+            # Derived names
+            my $pf = defined $arg->{prefix} ? $arg->{prefix} . "$f" : $f;
+            my $ef = $env eq '1' ? $pf : "${env}$f" if $env;
+
+            # Ignore if we have a later version
+            next if exists $self->{$pf};
 
             # Warn on permissions problems
             if (! -r $df) {
                 warn "can't read file '$df'";
+                next;
+            }
+
+            # Zero-sized files clear any earlier entry
+            if (-z $df) {
+                $self->{$pf} = undef;
+                delete $ENV{$ef} if $ENV{$ef} && $env;
                 next;
             }
 
@@ -116,6 +130,11 @@ sub init
             }
         }
         closedir DIR;
+    }
+
+    # Delete zero-sized files
+    for (keys %$self) {
+        delete $self->{$_} if ! defined $self->{$_};
     }
 
     return $self;
@@ -299,8 +318,8 @@ Regex of filenames to ignore (default: none).
 
 =item B<glob>
 
-Glob pattern of filenames to include - all other files are ignored
-(default: none).
+Glob pattern (or arrayref of glob patterns) of filenames to include - 
+all other files are ignored (default: none).
 
 =item B<prefix>
 
