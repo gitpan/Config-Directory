@@ -7,8 +7,12 @@ use strict;
 
 use vars qw($VERSION);
 
-$VERSION = '0.01';
+$VERSION = '0.02';
 
+my $DIRLIST;
+my $ARG;
+
+# Helper routine - read an individual file
 sub readfile
 {
     my ($self, $df, $arg) = @_;
@@ -34,10 +38,13 @@ sub readfile
     return $content;
 }
 
+# Initialise hash
 sub init
 {
     my ($self, $dir, $arg) = @_;
     $dir = [ $dir ] if ref $dir ne 'ARRAY';
+    $DIRLIST = $dir;
+    $ARG = $arg;
     my $env = $arg->{env};
     my $maxsize = $arg->{maxsize} || 102_400;
     my $ignore = $arg->{ignore};
@@ -95,6 +102,10 @@ sub init
             chomp $self->{$pf} 
                 unless exists $arg->{'chomp'} && $arg->{'chomp'} == 0;
 
+            # Trim value unless trim => 0 arg given
+            $self->{$pf} =~ s/^\s*(.*?)\s*$/$1/m
+                unless exists $arg->{trim} && $arg->{trim} == 0;
+
             # Add to environment ('env_dir') if 'env' option and single line
             if ($env) {
                 my ($first, $rest) = split /\n/, $self->{$pf}, 2;
@@ -110,10 +121,43 @@ sub init
     return $self;
 }
 
+# Constructor
 sub new 
 {
     my $self = bless {}, shift;
     $self->init(@_);
+}
+
+# Accessor
+sub get
+{
+    my ($self, $name) = @_;
+    $self->{$name}; 
+}
+
+# Mutator
+sub set
+{
+    my ($self, $name, $value) = @_;
+
+    # Find and check directory to write to
+    my $dir = $DIRLIST->[$#$DIRLIST];
+    die "final directory $dir is not writable" unless -d $dir && -w $dir;
+
+    # Save to file
+    my $file = File::Spec->catfile($dir,$name);
+    open OUT, ">$file" or die "unable to open '$file' for write: $!";
+    {
+        local $\ = undef;
+        print OUT $value;
+        print OUT "\n"
+            unless substr($value,-1) eq "\n" || length($value) == 0 || 
+                  (exists $ARG->{'chomp'} && $ARG->{'chomp'} == 0);
+    }
+    close OUT or die "unable to close '$file': $!";
+
+    # Update $self
+    $self->{$name} = $value;
 }
 
 1;
@@ -122,7 +166,7 @@ __END__
 
 =head1 NAME
 
-Config::Directory - hash-based interface to directories of files
+Config::Directory - OO hash-based interface to directories of files
 
 
 =head1 SYNOPSIS
@@ -130,63 +174,102 @@ Config::Directory - hash-based interface to directories of files
   use Config::Directory;
 
   # Simple 
-  $c = Config::Directory->new("/etc");
-  print $c->{passwd}, "\n";
+  $etc = Config::Directory->new("/etc");
+  $passwd = $etc->get('passwd');     # get() accessor
+  print $etc->{passwd}, "\n";        # hashref accessor
 
   # Multiple config directories
-  $cc = Config::Directory->new([ "/usr/local/myapp/conf", "$HOME/.myapp" ]);
+  $cc = Config::Directory->new([ 
+    "/usr/local/myapp/conf", "$HOME/.myapp" 
+  ]);
 
-  # Options: add prefix, export values to environment, read only first line
-  #   ignore all README.* files
+  # Options: add prefix, read only first line, ignore all README.* files
   $qc = Config::Directory->new("/var/qmail/service/qmail/env",
-      { prefix => 'QMAIL_', env => 1, lines => 1, ignore => 'README.*' });
-  print $q->{QMAIL_CONCURRENCY}, $ENV{QMAIL_CONCURRENCY}, "\n";
+      { prefix => 'QMAIL_', lines => 1, ignore => 'README.*' });
+  print $q->{QMAIL_CONCURRENCY}, "\n";    # from file CONCURRENCY
+
+  # Updating values
+  $qc->set('CONCURRENCY', 10);
+  $etc->set('passwd.min','root:x:0:0:root:/root:/bin/bash');
+  print $etc->get('passwd.min'), "\n";
 
 
 =head1 ABSTRACT
 
-  OO-interface to directories of files, particularly suited to configs 
-  loaded from multiple small files across multiple cascading 
-  directories.
+OO-interface to directories of files, particularly suited to configs 
+loaded from multiple small files across multiple cascading 
+directories.
 
 
 =head1 DESCRIPTION
 
-Config::Directory presents an OO hash-based read-only interface to
-directories of files. It is particularly suited to configuration
-directories where settings can cascade across multiple directories 
-with multiple files per directory.  Using multiple directories for
-configuration data allows an application to support, for example,
-distribution defaults, global site settings, and user-specific local
-settings. Using multiple configuration files can often simplify
-formatting, reduce parsing requirements, and improve scriptability 
-(e.g. 'echo 10 > conf/MAXSIZE').
+Config::Directory presents an OO hash-based interface to directories 
+of files. It is particularly suited to configuration directories where 
+settings can cascade across multiple directories with multiple files 
+per directory. Using multiple directories for configuration data 
+allows an application to support, for example, distribution defaults, 
+global site settings, and user-specific local settings, while using
+files for individual config items makes update interfaces much simpler,
+does away with lots of parsing problems, and is nicely scriptable.
 
-Config::Directory uses a very simple OO-style interface - only the new()
-method exists. Basic usage is:
+=head2 METHODS
 
-  # Load all files in a single directory
+Config::Directory uses a very simple OO-style interface, with the only
+methods provided being new(), get(), and set(). Basic usage is as 
+follows:
+
+=over 4
+
+=item B<new>
+
+The Config::Directory constructor takes up to two arguments. The 
+first is a directory or arrayref of directories to scan for files;
+the second is an optional hashref containing options (see OPTIONS
+below).
+
+  # Constructor, with single or multiple directories
   $c = Config::Directory->new("/etc");
-  print $c->{passwd};
+  $c2 = Config::Directory->new([
+    "/usr/local/myapp/dist", "/usr/local/myapp/local",
+  ]);
 
-where the returned Config::Directory object will contain a hash reference
-of the files in the directory, keyed by filename, with each entry
-containing the (chomped) contents of the relevant file. Subdirectories
-are ignored, as are zero-length files and files greater than 100K in size
-(the limit is tunable via the 'maxsize' option). 
+  # Constructor with options
+  $c2 = Config::Directory->new("/etc", {
+    ignore => '*.rpmnew', chomp => 0,
+   });
 
-The directory argument to new() can be either a single directory, as 
-in the example above, or an arrayref of directories to allow multiple 
-cascading configuration directories. Thus:
+The directory argument to new() can be either a single directory via
+a scalar, or an ordered set of directories passed in as an arrayref,
+which are scanned in the given order. Later files with the same
+names override earlier ones. The returned Config::Directory object
+contains a hash reference of the files in the directory keyed by
+filename, with each entry containing the (chomped) contents of the
+relevant file. Subdirectories are ignored, as are zero-length files
+and files greater than 100K in size (the limit is tunable via the
+'maxsize' option - see OPTIONS below). 
 
-  # Multiple config directories
-  $cc = Config::Directory->new([ "/usr/local/myapp/conf", "$HOME/.myapp" ]);
+=item B<get>
 
-loads the files from /usr/local/myapp/conf, followed by those from
-$HOME/.myapp. Later files with the same name override previous ones.
+An accessor method, supplied as an alternative to using the blessed
+hashref directly. 
 
-new() also takes an optional hashref of options. The following are
-currently defined:
+  $value = $c->get($name);
+
+=item B<set>
+
+A mutator method, for updating the contents of a file. If using a
+set of directories, updated files are always written to the last
+directory in the set. Dies on error.
+
+  $c->set($name, $value).
+
+=back
+
+
+=head2 CONSTRUCTOR OPTIONS
+
+The new() constructor takes an optional hashref of options. The 
+following are recognised:
 
 =over 4
 
@@ -199,6 +282,16 @@ The maximum number of lines (newline-delimited) to read from a file
 
 Maximum size of file to read - files larger than B<maxsize> are 
 ignored (default: 100K).
+
+=item B<chomp>
+
+Whether file values should be B<chomp>ed, which allows single-line 
+files to produce immediately useful values (default: 1).
+
+=item B<trim>
+
+Whether whitespace at the beginnings and end of lines should be 
+removed (default: 1).
 
 =item B<ignore>
 
@@ -230,22 +323,13 @@ variables (default: none). e.g.
 
 will set environment variables MYAPP_filename1, MYAPP_filename2, etc.
 
-=item B<chomp>
-
-By default, all file values are B<chomp>ed, which allows single-line
-files to produce immediately useful values. If you don't like this,
-you can turn it off by setting chomp to zero.
-
 =back
 
 
 =head1 LIMITATIONS
 
-Config::Directory is currently read-only. A read-write interface is 
-likely in the future (see e.g. Tie::TextDir in the meantime).
-
-It's also not recursive - subdirectories are simply ignored. And
-there is no file-merging support - files of the same name in later
+Config::Directory is not recursive - subdirectories are simply ignored. 
+There is also no file-merging support - files of the same name in later
 directories simply overwrite the previous ones.
 
 

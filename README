@@ -1,13 +1,14 @@
-Config/Directory - version 0.01
+Config/Directory - version 0.02
 ===============================
 
 INTRO
 
 Config::Directory provides an object-oriented interface to configuration 
-data stored as multiple small files in one or more config directories
-(something like /proc on Linux and Solaris, or 'env' directories with
-qmail/daemontools). This kind of layout is very nice for some kinds of
-scriptability (e.g. 'echo 10 > conf/MAXCONNECTIONS').
+data stored as multiple small files in one or more config directories.
+Using individual files for config items greatly simplifies update 
+interfaces and scriptability, while using multiple directories allows
+distinctions between distribution and local configuration settings, for
+example.
 
 Basic usage:
 
@@ -21,14 +22,21 @@ Each file becomes an entry in the blessed hashref $c, with the filename as
 the key and the file contents as the value.
 
 There are various optional arguments to modify the default behaviour - see
-the perldoc for the details.
+the perldocs for the details.
 
-Currently only readonly access is available.
+This version supports write access to config files, using a set() method:
+
+  $c->set($name, $value)
+
+which writes $value to the file called $name. If more than one config
+directory is used, set() always used the last one in the list for writes.
+A get() method is provided for consistency, equivalent to the direct
+hash access.
 
 
 INSTALLATION
 
-The standard:
+The usual:
 
    perl Makefile.PL
    make
@@ -40,11 +48,4 @@ DEPENDENCIES
 
 File::Basename, File::Spec.
 
-
-COPYRIGHT AND LICENCE
-
-Copyright (C) 2003 Gavin Carr and Open Fusion Pty. Ltd.
-
-This library is free software; you can redistribute it and/or modify
-it under the same terms as Perl itself. 
 
