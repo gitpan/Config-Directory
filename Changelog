@@ -1,0 +1,17 @@
+[ 0.03 - 14 May 2003 ]
+
+- fixed a buglet with two tests failing on case-insensitive filesystems 
+  (e.g. Mac OSX)
+
+[ 0.02 - 13 May 2003 ]
+
+- added write support via set() method
+- added get() method for symmetry with set()
+- added 'trim' option and confirmed it played properly with 'chomp'
+- updated perldocs
+
+[ 0.01 - 5 Feb 2003 ]
+
+- added 'prefix', 'lines', 'maxsize', 'chomp', and 'ignore' options
+- initial readonly version
+

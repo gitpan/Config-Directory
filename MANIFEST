@@ -26,8 +26,8 @@ t/t4/PEAR
 t/t5/APPLE
 t/t5/CRAB
 t/t5/PEAR
-t/t5/apple
-t/t5/pear
+t/t5/banana
+t/t5/peach
 t/t6/APPLE
 t/t6/BANANA
 t/t6/ORANGE
@@ -45,3 +45,6 @@ t/t8/PEACH
 t/t8/PEAR
 t/t8/PINEAPPLE
 t/t8/PLUM
+t/t9/APPLE
+t/t10/GRAPE
+t/t10/STRAWBERRY

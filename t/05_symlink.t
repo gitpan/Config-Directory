@@ -18,10 +18,10 @@ ok(scalar(@apple) == 4 && $apple[$#apple] eq 'apple4');
 # Symlink to APPLE
 @apple = split /\n/, $c->{CRAB};
 ok(scalar(@apple) == 4 && $apple[$#apple] eq 'apple4');
-# apple vs APPLE
-@apple = split /\n/, $c->{apple};
+# banana vs APPLE
+@apple = split /\n/, $c->{banana};
 ok(scalar(@apple) == 9 && $apple[$#apple] == 9);
 ok($c->{BANANA} == 2);
-ok(! exists $c->{pear});
+ok(! exists $c->{peach});
 # Zero symlink overrides t2/PEAR
 ok(! exists $c->{PEAR});
