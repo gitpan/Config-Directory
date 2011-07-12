@@ -8,6 +8,7 @@ WriteMakefile(
     'PREREQ_PM'		=> { 
         'File::Basename'        => 0, 
         'File::Spec'            => 0, 
+        'Test::More'            => 0.88,
     },
     ($] >= 5.005 ?    ## Add these new keywords supported since 5.005
       (ABSTRACT_FROM => 'Directory.pm', # retrieve abstract from module

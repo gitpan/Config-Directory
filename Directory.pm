@@ -1,15 +1,14 @@
-# tag: Config::Directory
 
 package Config::Directory;
 
 use 5.000;
+use strict;
 use File::Basename;
 use File::Spec;
-use strict;
 
 use vars qw($VERSION);
 
-$VERSION = '0.04';
+$VERSION = '0.05';
 
 my $DIRLIST;
 my $ARG;
@@ -17,11 +16,11 @@ my $ARG;
 # Helper routine - read an individual file
 sub readfile
 {
-    my ($self, $df, $arg) = @_;
+    my ($self, $dir_file, $arg) = @_;
     my $content = '';
 
     # Open
-    open FILE, "<$df" or die "can't open file '$df': $!";
+    open FILE, "<$dir_file" or die "can't open file '$dir_file': $!";
 
     # Read only $arg->{lines} lines, if set
     if ($arg->{lines} && $arg->{lines} =~ m/(\d+)/) {
@@ -30,7 +29,7 @@ sub readfile
         }
     }
 
-    # Slurp entire file
+    # Otherwise slurp entire file
     else {
         local $/ = undef;
         $content = <FILE>;
@@ -77,59 +76,65 @@ sub init
 
         # Iterate over files
         for my $f (@files) {
-            my $df = $arg->{glob} ? $f : File::Spec->catfile($d, $f);
+            my $dir_file = $arg->{glob} ? $f : File::Spec->catfile($d, $f);
             $f = basename($f) if $arg->{glob};
 
             # Ignore directories
-            next if -d $df;
+            next if -d $dir_file;
 
             # Ignore if matches $ignore regex
             next if defined $ignore && $f =~ m/$ignore/;
 
             # Ignore if size > $maxsize
-            next if -s $df > $maxsize;
+            next if -s $dir_file > $maxsize;
+
+            # Ignore if not readable
+            next unless -r $dir_file;
 
             # Derived names
-            my $pf = defined $arg->{prefix} ? $arg->{prefix} . "$f" : $f;
-            my $ef = $env eq '1' ? $pf : "${env}$f" if $env;
+            my $prefix_file = defined $arg->{prefix} ? $arg->{prefix} . "$f" : $f;
+            my $env_file = '';
+            if ($env) {
+              $env_file = $env eq '1' ? $prefix_file : "${env}$f";
+            }
 
             # Ignore if we have a later version
-            next if exists $self->{$pf};
+            next if exists $self->{$prefix_file};
 
             # Warn on permissions problems
-            if (! -r $df) {
-                warn "can't read file '$df'";
+            if (! -r $dir_file) {
+                warn "can't read file '$dir_file'";
                 next;
             }
 
             # Zero-sized files clear any earlier entry
-            if (-z $df) {
-                $self->{$pf} = undef;
-                delete $ENV{$ef} if $ENV{$ef} && $env;
+            if (-z $dir_file) {
+                $self->{$prefix_file} = undef;
+                delete $ENV{$env_file} if $env_file and exists $ENV{$env_file};
                 next;
             }
 
             # Read file
-            $self->{$pf} = $self->readfile($df, $arg);
+            $self->{$prefix_file} = $self->readfile($dir_file, $arg);
 
             # Chomp value unless chomp => 0 arg given
-            chomp $self->{$pf} 
+            chomp $self->{$prefix_file} 
                 unless exists $arg->{'chomp'} && $arg->{'chomp'} == 0;
 
             # Trim value unless trim => 0 arg given
-            $self->{$pf} =~ s/^\s*(.*?)\s*$/$1/m
+            $self->{$prefix_file} =~ s/^\s*(.*?)\s*$/$1/m
                 unless exists $arg->{trim} && $arg->{trim} == 0;
 
             # Add to environment ('env_dir') if 'env' option and single line
             if ($env) {
-                my ($first, $rest) = split /\n/, $self->{$pf}, 2;
+                my ($first, $rest) = split /\n/, $self->{$prefix_file}, 2;
                 if (! $rest) {
-                    $ENV{$ef} = $self->{$pf};
-                    chomp $ENV{$ef};
+                    $ENV{$env_file} = $self->{$prefix_file};
+                    chomp $ENV{$env_file};
                 }
             }
         }
-        closedir DIR;
+        closedir DIR unless $arg->{glob};
     }
 
     # Delete zero-sized files
@@ -367,7 +372,7 @@ Gavin Carr, E<lt>gavin@openfusion.com.auE<gt>
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright 2003 by Gavin Carr and Open Fusion Pty. Ltd.
+Copyright 2003-2011 Gavin Carr.
 
 This library is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself. 
